@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <link
+      rel="stylesheet"
+      href="https://use.fontawesome.com/releases/v5.6.3/css/all.css"
+      integrity="sha384-UHRtZLI+pbxtHCWp1t77Bi1L4ZtiqrqD80Kn4Z8NTSRyMA2Fd33n5dQ8lWUE00s/"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="stylesheet"
+      href="https://bootswatch.com/4/journal/bootstrap.min.css"
+    />
+    <!-- MDB -->
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/mdb-ui-kit/3.10.2/mdb.min.css"
+      rel="stylesheet"
+    />
+    <link href='http://fonts.googleapis.com/css?family=Roboto' rel='stylesheet' type='text/css'>
+
+    <title>CSC3007 Assignment 4</title>
+  </head>
+  <body>
+    <div class="container">
+      <h1 style="text-align: center">CSC3007 Assignment 4 - Gideon</h3>
+      <svg></svg>
+      <div id="faketooltip" style="position: absolute"></div>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.13.0/d3-legend.js"></script>
+
+    <script>
+      // set the width and height to be responsive
+      let width = window.innerWidth,
+        height = window.innerHeight;
+      let svg = d3.select("svg").attr("viewBox", "0 0 " + width + " " + height);
+
+      // Load external data
+      Promise.all([
+        d3.json("./assets/links.json"),
+        d3.json("./assets/cases.json"),
+      ]).then((data) => {
+        // Iterate through cases object and links object. Last time I do like 2 days, this time 2 mins :(
+        data[0].forEach(function (object) {
+          object.source = object.infector;
+          object.target = object.infectee;
+        });
+
+        console.log(data[0]); // links
+        console.log(data[1]); // cases
+
+        var genderScale = d3
+          .scaleOrdinal()
+          .domain(["Male", "Female"])
+          .range(["#2766f6", "#fc363b"]);
+
+        var legendScale = d3
+          .legendColor()
+          .labels(["Male", "Female"])
+          .scale(genderScale)
+          .title("Gender");
+
+        legendScale = svg
+          .append("g")
+          .attr("class", "legend")
+          .attr("transform", "translate(140,500)")
+          .style("font-size", "20px")
+          .style("font-family","Roboto, sans-serif")
+          .call(legendScale);
+
+        let node = svg
+          .append("g")
+          .attr("id", "nodes")
+          .selectAll("circle")
+          .data(data[1])
+          .enter()
+          .append("circle")
+          .attr("r", 30)
+          .style("fill", function (d) {
+            if (d.gender == "female") {
+              return genderScale("Female");
+            } else {
+              return genderScale("Male");
+            }
+          })
+
+          .on("mouseover", (mouseEvent, d) => {
+            // Last week can't do ToolTip styling, this week finally can do
+
+            d3.select("#faketooltip")
+              .html(
+                "Age: " +
+                  d.age +
+                  "<br>Gender: " +
+                  d.gender +
+                  "<br>Nationality: " +
+                  d.nationaltooltipsity +
+                  "<br>Organization: " +
+                  d.organization +
+                  "<br>Occupation: " +
+                  d.occupation +
+                  "<br>Vaccination Status: " +
+                  d.vaccinated
+              )
+              .style("left", mouseEvent.pageX + "px")
+              .style("top", mouseEvent.pageY + "px")
+              .style("visibility", "visible")
+              .style("opacity", 2)
+              .style("background-color", "rgba(255,255,255,0.5)")
+              .style("color", "black")
+              .style("font-family","Roboto, sans-serif");
+
+            console.log("inside");
+            let path = d3.select(mouseEvent.currentTarget);
+
+            d3.select(mouseEvent.currentTarget)
+              .style("stroke", "black")
+              .style("stroke-width", 1.25)
+              .style("opacity", 3)
+              .classed("selected", true);
+          })
+          .on("mouseout", (mouseEvent, d) => {
+            d3.select("#faketooltip").text("").style("opacity", 0);
+            d3.select(event.currentTarget)
+              .style("stroke", "transparent")
+              .classed("selected", false);
+          })
+          .call(
+            d3
+              .drag()
+              .on("start", dragstarted)
+              .on("drag", dragged)
+              .on("end", dragended)
+          );
+
+        let linkpath = svg
+          .append("g")
+          .attr("id", "links")
+          .selectAll("path")
+          .data(data[0])
+          .enter()
+          .append("path")
+          .attr("fill", "none")
+          .attr("stroke", "black");
+
+        let image = svg
+          .append("g")
+          .selectAll("image")
+          .data(data[1])
+          .enter()
+          .append("image")
+          .attr("xlink:href", (d) => {
+            if (d.gender == "male") return "./assets/male-icon.png";
+            else return "./assets/female-icon.png";
+          })
+          .attr("width", 20)
+          .attr("height", 25);
+
+        function dragstarted(event, d) {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+          d.fx = event.x;
+          d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+          if (!event.active) simulation.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        }
+
+        let simulation = d3
+          .forceSimulation()
+          .nodes(data[1])
+          .force("x", d3.forceX().x(width / 2))
+          .force("y", d3.forceY().y(height / 2))
+          .force(
+            "link",
+            d3
+              .forceLink(data[0])
+              .id((d) => d.id)
+              .distance(80)
+          )
+          .force("collide", d3.forceCollide().strength(0.1).radius(50))
+          .on("tick", (d) => {
+            node.attr("cx", (d) => d.x).attr("cy", (d) => d.y);
+
+            linkpath.attr("d", function (d) {
+              var dx = d.target.x - d.source.x,
+                dy = d.target.y - d.source.y,
+                dr = Math.sqrt(dx * dx + dy * dy);
+              return (
+                "M" +
+                d.source.x +
+                "," +
+                d.source.y +
+                "A" +
+                dr +
+                "," +
+                dr +
+                " 0 0,1 " +
+                d.target.x +
+                "," +
+                d.target.y
+              );
+            });
+
+            image.attr("x", (d) => d.x - 10).attr("y", (d) => d.y - 15);
+          });
+      });
+    </script>
+  </body>
+</html>
